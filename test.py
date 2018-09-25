@@ -5,16 +5,13 @@ import torch.optim as optim
 import neural_net as neunet
 import numpy as np
 import random
-import time
+import time as t
 from sys import getsizeof
+import matplotlib.pyplot as plt
 from torch.autograd import Variable
+import matplotlib.animation as animation
 
-b = tc.Tensor([[1, 2, 3, 4], [2, 3, 4, 5], [3, 4, 5, 6]])
-c = tc.Tensor([[[1, 2, 3, 4], [2, 3, 4, 5], [3, 4, 5, 6]], [[1, 2, 3, 4], [2, 3, 4, 5], [3, 4, 5, 6]]])
-e = tc.Tensor([])
-f = tc.Tensor([1, 2, 3, 4, 5, 6, 7, 8, 9]).long()
+a = np.array([[[[1, 2, 3], [1, 2, 3]], [[1, 2, 3], [1, 2, 3]]]])
 
-b = np.array([1, 2, 3, 4, 5])
-
-s = '10000'
-print(int(s))
+print(a.shape)
+print(np.concatenate((a, a, a), axis=1).shape)

@@ -5,6 +5,7 @@ sys.path.insert(0,
 import cv2
 import random
 import numpy as np
+import time as t
 import neural_net as nn
 import torch as tc
 import torchvision as tv
@@ -44,9 +45,10 @@ def ep_greedy(ep, state, minimal_actions, nn):
         action_index = random.randrange(0, len(minimal_actions)-1)
         if action_index >= index:
             action_index = action_index + 1
-        return tc.Tensor([minimal_actions[action_index]]).long(), Qvalues[action_index]
+        # del Qvalues, num, Qmax, index
+        return tc.Tensor([minimal_actions[action_index]]).long()
     else:
-        return Amax, Qmax
+        return Amax
         
 
 
@@ -79,6 +81,7 @@ memory_size = int(2e4)
 replay_memory_size = int(1e4)
 gamma = 0.99
 ep = 1
+action = None
 ale = ALEInterface()
 vf = nn.Neural_Net()
 vf.cuda()
@@ -105,7 +108,6 @@ minimal_actions = ale.getMinimalActionSet()
 
 print('minimal_actions :\n', minimal_actions)
 
-screen_data = np.empty((210, 160, 1), dtype=np.uint8)
 screen_data = None
 
 
@@ -113,30 +115,34 @@ screen_data = None
 image = ale.getScreenGrayscale(screen_data)
 image = impre(name_of_the_game, image)
 state = tc.stack((image, image, image, image), dim=0).unsqueeze(0).type(gpu_dtype)
-
+del image
 
 memory_buffer = []
-zeros = tc.zeros_like(image)
 # state_m = tc.zeros(sample_num, 4, 84, 84).type(gpu_dtype)
 y = tc.zeros([sample_num, 18]).type(gpu_dtype)
 
 
 frame_num = ale.getFrameNumber()
-action = None
+
+# start = t.time()
+
 # iteration loop
 while frame_num < 1e7:
+
+
     # reset_game if the game is over
     if ale.game_over() == True:
         ale.reset_game()
         image = ale.getScreenGrayscale(screen_data)
         image = impre(name_of_the_game, image)
         state = tc.stack((image, image, image, image), dim=0).unsqueeze(0).type(gpu_dtype)
+        del image
 
     # take action!!!!!
     if frame_num % 4 != 0:
         pass
     else:
-        action, qvalue = ep_greedy(ep, state, minimal_actions, vf)
+        action = ep_greedy(ep, state, minimal_actions, vf)
     reward = tc.Tensor([ale.act(action)]).long().type(gpu_dtype)
     frame_num = ale.getFrameNumber()
     ep -= 9e-7
@@ -158,7 +164,8 @@ while frame_num < 1e7:
     # Save information in memory buffer
     memory_buffer.append((state, action, reward, new_state)) ####################
     # state = state.type(gpu_dtype)
-    # state = new_state.type(gpu_dtype)
+    state = new_state.type(gpu_dtype)
+    del new_state, image, reward
     
     if frame_num % 100 == 0:
         print('frame_num :', frame_num)
@@ -174,19 +181,26 @@ while frame_num < 1e7:
         
         # update frequency is 4
         if frame_num % 4 == 0:
+            point = t.time()
             minibatch = random.sample(memory_buffer, sample_num)
-            
+            random_sample_t = t.time() - point
+            print('random_sample_t :', random_sample_t)
+
             state_m = []
             # get Qmax value at new state
+            point = t.time()
             for i in range(sample_num):
                 # print('minibatch[i][0] :\n', minibatch[i][0])
                 # print('tc.sum(minibatch[i][0]) :\n', tc.sum(minibatch[i][0]))
                 # print('minibatch[i][0].size() :\n', minibatch[i][0].size())
+                # point = t.time()
                 state_m.append(minibatch[i][0])
                 action_m = minibatch[i][1]
                 reward_m = minibatch[i][2]
                 next_state_m = minibatch[i][3]
-                
+                # seperate_t = t.time() - point
+                # print('seperate_t :', seperate_t)
+
                 if tc.sum(next_state_m[0,-1,30,:]) == 0 and tc.sum(next_state_m[0,-1,:,:]) == 0:
                     Qmax = 0
                 else:
@@ -198,13 +212,15 @@ while frame_num < 1e7:
                 y[i] = vf.test(state_m[i])
                 y[i, action] = reward_m + gamma * Qmax
                 
-
-            # print('y :\n', y)
-            # print('y.size() :\n', y.size())
+            making_y_t = t.time() - point
+            print('making_y_t :', making_y_t)
             
             state_m = tc.cat(state_m, dim=0).type(gpu_dtype)
             # print('state_m.size() :\n', state_m.size())
-            vf.train(state_m, y)
+            point = t.time()
+            vf.train(state_m.detach(), y.detach())
+            train_t = t.time() - point
+            print('train_t :', train_t)
 
             if frame_num % 1e4 == 0:
                 vf.target_nn_update()
@@ -217,9 +233,7 @@ while frame_num < 1e7:
                 
                 tc.save(vf.update_model.state_dict(), \
                     '/home/juna/Documents/Projects/atari_project/models/atari_'+str(frame_num)+'.h5')
-                if count_target_nn_update == 0:
-                    count_target_nn_update += 1
-                    print('===============main_model_updated===============')
+                print('===============main_model_updated===============')
 
 
 

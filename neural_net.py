@@ -18,7 +18,6 @@ class Neural_Net(Flatten):
         self.dtype = dtype
         
         # x = Variable(tc.randn(1, 4, 84, 84).type(gpu_dtype), requires_grad=False)
-        '''NN 수정해야함'''
         model = nn.Sequential(
             nn.Conv2d(4, 32, kernel_size=8, stride=4),
             nn.ReLU(inplace=True),
@@ -45,7 +44,7 @@ class Neural_Net(Flatten):
         self.update_optimizer.zero_grad()
         out = self.update_model(state)
         cost = self.criterion(out, y)
-        cost.backward(retain_graph=True)
+        cost.backward(retain_graph=False)
         self.update_optimizer.step
         return out, cost.data
 
